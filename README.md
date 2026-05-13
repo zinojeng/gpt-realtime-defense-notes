@@ -50,23 +50,39 @@ npm run dev
 
 ## 3. 部署到 Zeabur
 
-1. 把整個專案 push 到 GitHub。
-2. 登入 [Zeabur](https://zeabur.com) → **Create Project** → **Deploy New Service**。
-3. 連結你的 GitHub repo，選擇此資料夾（`oral-defense-ai-recorder`）作為 root。
-4. Zeabur 會自動偵測 Next.js 並使用 `npm run build` + `npm run start`。
-5. 在 service 的 **Environment Variables** 設定：
+> 本專案附帶 `Dockerfile`（multi-stage、Next.js standalone、`node:20-alpine`）。
+> Zeabur 偵測到 Dockerfile 後會直接以 Docker 模式建置，**繞過 Zeabur 預設 Node builder**，
+> 避免 `RUN npm update -g npm` 之類的 base image bug。
+
+1. 把整個 repo push 到 GitHub。
+2. 登入 [Zeabur](https://zeabur.com) → **Create Project** → **Deploy New Service** → 連結 GitHub repo。
+3. Zeabur 會偵測到根目錄的 `Dockerfile` 並以 Docker 模式建置（不需要任何 `zbpack` 設定）。
+4. 在 service 的 **Environment Variables** 設定：
    - `OPENAI_API_KEY=sk-...`
    - **強烈建議**：`APP_SHARED_SECRET=<自訂高熵字串>`，否則任何人都可以呼叫你的後端燒 OpenAI 額度。
    - 其他可選變數依需求加入（`OPENAI_SUMMARY_MODEL`、`SUMMARY_INTERVAL_MS` 等）。
-6. 第一次部署完成後，於 service 設定 **Domain** → Generate 一個 `*.zeabur.app` 網域或綁定自有網域。
-7. 開啟網域，瀏覽器會要求麥克風權限——必須是 HTTPS 才允許 `getUserMedia`，Zeabur 預設就是 HTTPS。
+5. 部署完成後，於 service 設定 **Domain** → Generate 一個 `*.zeabur.app` 網域或綁定自有網域。
+6. 開啟網域，瀏覽器會要求麥克風權限——必須是 HTTPS 才允許 `getUserMedia`，Zeabur 預設就是 HTTPS。
 
 ### Zeabur 注意事項
 
+- **port**：Dockerfile 預設 `PORT=8080`，但 Zeabur 會注入自己的 `PORT` 環境變數；standalone server 會自動採用 Zeabur 的值。
+- **healthcheck**：Dockerfile 內建 `/api/config` 健康檢查。
 - **無需資料庫**：所有場次紀錄存於使用者瀏覽器 IndexedDB；不同電腦 / 不同瀏覽器之間不會同步。
 - **無持久化儲存**：伺服器端僅作為 OpenAI 的 proxy（ephemeral token + Chat Completions），不寫檔。
 - **WebRTC 直連**：瀏覽器透過 OpenAI 回傳的 ephemeral key 直接連到 `api.openai.com`；Zeabur 本身只看到一次性 token 申請與 Chat Completions 呼叫，**不會代理音訊**，因此頻寬成本很低。
 - **建議區域**：選 Tokyo / Singapore，降低台灣 ↔ OpenAI 的延遲。
+
+### 本機 Docker 測試（可選）
+
+```bash
+docker build -t oral-defense .
+docker run --rm -p 8080:8080 \
+  -e OPENAI_API_KEY=sk-... \
+  -e APP_SHARED_SECRET=hunter2 \
+  oral-defense
+# 開啟 http://localhost:8080
+```
 
 ---
 
